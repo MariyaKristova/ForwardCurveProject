@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 from django.conf import settings
+from django.http import Http404, FileResponse
 from django.shortcuts import render
 from .forms import PlantParametersForm
 import pyomo.environ as pyo
@@ -11,6 +12,7 @@ import matplotlib.pyplot as plt
 import io
 import base64
 import numpy as np
+from datetime import datetime
 
 def upload_view(request):
     if request.method == "POST":
@@ -118,7 +120,24 @@ def upload_view(request):
                 "startup_cost_per_MWh": (sum(startups)*startup_cost)/sum(power) if sum(power)>0 else 0
             }
 
-            # --- Plot ---
+            # --- ADDED: create unique file names using timestamp ---
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # <-- added timestamp
+            csv_filename = f"unit_commitment_results_{timestamp}.csv"  # <-- unique CSV filename
+            png_filename = f"unit_commitment_plot_{timestamp}.png"     # <-- unique PNG filename
+            output_csv_path = os.path.join(settings.DATA_OUTPUT_DIR, csv_filename)  # <-- full CSV path
+            output_png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_filename)  # <-- full PNG path
+
+            # --- ADDED: save CSV file to DATA_OUTPUT_DIR ---
+            df = pd.DataFrame({
+                "Hour": list(T),
+                "Power_Output_MW": power,
+                "Commitment": commitment,
+                "Startups": startups,
+                "Market_Price_BGN_per_MWh": market_price
+            })
+            df.to_csv(output_csv_path, index=False)  # <-- saving CSV
+
+            # --- ADDED: save PNG file to DATA_OUTPUT_DIR ---
             fig, ax = plt.subplots(figsize=(12,6))
             ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
             ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
@@ -129,17 +148,36 @@ def upload_view(request):
             ax.legend()
             ax.grid(True)
             plt.tight_layout()
+            plt.savefig(output_png_path)  # <-- saving unique PNG
+            plt.close(fig)
 
-            buffer = io.BytesIO()
-            plt.savefig(buffer, format="png")
-            buffer.seek(0)
-            image_png = buffer.getvalue()
-            buffer.close()
-            image_base64 = base64.b64encode(image_png).decode("utf-8")
+            # --- ADDED: encode PNG for displaying on the page ---
+            with open(output_png_path, "rb") as f:
+                image_base64 = base64.b64encode(f.read()).decode("utf-8")
 
-            return render(request, "plotapp/result.html", {"image": image_base64, "financials": financials})
+            # --- ADDED: pass file names to template for Download buttons ---
+            return render(request, "plotapp/result.html", {
+                "image": image_base64,
+                "financials": financials,
+                "csv_file": csv_filename,  # <-- new
+                "png_file": png_filename   # <-- new
+            })
 
     else:
         form = PlantParametersForm()
 
     return render(request, "plotapp/upload.html", {"form": form})
+
+def download_csv(request, filename):
+    """Serve CSV file from DATA_OUTPUT_DIR"""
+    file_path = os.path.join(settings.DATA_OUTPUT_DIR, filename)
+    if not os.path.exists(file_path):
+        raise Http404("File not found")
+    return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
+
+def download_png(request, filename):
+    """Serve PNG file from DATA_OUTPUT_DIR"""
+    file_path = os.path.join(settings.DATA_OUTPUT_DIR, filename)
+    if not os.path.exists(file_path):
+        raise Http404("File not found")
+    return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
