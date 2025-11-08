@@ -159,8 +159,8 @@ def upload_view(request):
             return render(request, "plotapp/result.html", {
                 "image": image_base64,
                 "financials": financials,
-                "csv_file": csv_filename,  # <-- new
-                "png_file": png_filename   # <-- new
+                "csv_file": csv_filename,
+                "png_file": png_filename
             })
 
     else:

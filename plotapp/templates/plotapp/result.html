@@ -11,10 +11,10 @@
   </div>
 
   <!-- Download Buttons -->
-    {% if csv_filename and png_filename %}
+    {% if csv_file and png_file %}
     <div class="text-center mb-4">
-        <a href="{% url 'download_csv' csv_filename %}" class="btn btn-primary me-2">Download CSV</a>
-        <a href="{% url 'download_png' png_filename %}" class="btn btn-secondary">Download PNG</a>
+        <a href="{% url 'download_csv' csv_file %}" class="btn btn-primary me-2">Download CSV</a>
+        <a href="{% url 'download_png' png_file %}" class="btn btn-secondary">Download PNG</a>
     </div>
     {% endif %}
 
