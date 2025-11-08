@@ -295,3 +295,22 @@ def view_result(request, run_id):
         "financials_table": df_results.to_html(classes="table table-striped", index=False),
         "load_curve_table": df_load_curve.to_html(classes="table table-striped", index=False)
     })
+
+
+def delete_result(request, run_id):
+    files = os.listdir(settings.DATA_OUTPUT_DIR)
+    deleted_files = []
+
+    for f in files:
+        if f.startswith(run_id):
+            file_path = os.path.join(settings.DATA_OUTPUT_DIR, f)
+            try:
+                os.remove(file_path)
+                deleted_files.append(f)
+            except Exception as e:
+                print(f"Error deleting {f}: {e}")
+
+    if not deleted_files:
+        raise Http404("No files found to delete for this run_id")
+
+    return redirect("all_results")

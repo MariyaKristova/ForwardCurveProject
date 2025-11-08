@@ -19,10 +19,11 @@
     <tr>
         <td>{{ run_id }}</td>
         <td>{{ date }}</td>
-        <td>
-            <a href="{% url 'view_result' run_id %}" class="btn btn-sm btn-primary">View</a>
-            
-        </td>
+    <td>
+        <a class="btn btn-info btn-sm" href="{% url 'view_result' run_id %}">View</a>
+        <a class="btn btn-danger btn-sm" href="{% url 'delete_result' run_id %}"
+           onclick="return confirm('Are you sure you want to delete this result?');">Delete</a>
+    </td>
     </tr>
     {% endfor %}
     </tbody>
