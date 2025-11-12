@@ -1,7 +1,6 @@
 import os
 import re
 import base64
-from datetime import datetime
 import pandas as pd
 import numpy as np
 from django.http import Http404, FileResponse
@@ -12,32 +11,48 @@ import matplotlib.pyplot as plt
 import pyomo.environ as pyo
 from django.conf import settings
 from .forms import PlantParametersForm
+from datetime import datetime, timedelta
 
 
 # --- Utility functions ---
 def read_excel_file(excel_filename):
+    # build full path to the Excel file
     excel_path = os.path.join(settings.DATA_INPUT_DIR, excel_filename)
-    dam_euro = pd.read_excel(excel_path)
+
+    # read Excel file
+    df = pd.read_excel(excel_path)
+
+    # ensure correct datetime format
+    df["DateTime"] = pd.to_datetime(df["DateTime"], dayfirst=True)
+
+    # convert market prices from EUR to BGN
     bgn_euro_rate = 1.95583
-    dam_bgn = dam_euro.values * bgn_euro_rate
-    n_hours = 365 * 24
-    market_price = dam_bgn[:n_hours].flatten()
-    return market_price
+    df["Price"] = df["Price"].astype(float) * bgn_euro_rate
 
+    # return the full DataFrame for further filtering
+    return df
 
-def calculate_degradation(length):
-    months = range(175, 187)
-    month_lengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    degradation = np.zeros(length)
-    start_idx = 0
-    for idx, month_length in enumerate(month_lengths):
-        stop_idx = start_idx + month_length * 24
-        if stop_idx > length:
-            stop_idx = length
-        degradation[start_idx:stop_idx] = 1.071 + 0.0002 * months[idx]
-        start_idx = stop_idx
+def calculate_degradation(n_hours, start_date):
+    # station commissioning date
+    commissioning_date = datetime(2011, 5, 9)
+
+    # prepare degradation list
+    degradation = np.zeros(n_hours)
+
+    # calculate degradation factor for each hour
+    for i in range(n_hours):
+        current_date = start_date + timedelta(hours=i)
+
+        # calculate total months since commissioning
+        months_since_start = (
+            (current_date.year - commissioning_date.year) * 12
+            + (current_date.month - commissioning_date.month)
+        )
+
+        # degradation formula from the original model
+        degradation[i] = 1.071 + 0.0002 * months_since_start
+
     return degradation
-
 
 def build_model(n_hours, market_price, params, degradation):
     T = range(n_hours)
@@ -158,52 +173,84 @@ def generate_plot(T, market_price, power, commitment, max_power, index_str, date
 
     return png_filename, image_base64
 
-
 # --- Main view ---
 def upload_view(request):
     if request.method == "POST":
         form = PlantParametersForm(request.POST)
         if form.is_valid():
-            # --- Read market price ---
-            market_price = read_excel_file(form.cleaned_data["excel_file"])
-            degradation = calculate_degradation(len(market_price))
+            # read excel file with market prices
+            df = read_excel_file(form.cleaned_data["excel_file"])
 
-            # --- Prepare parameters ---
+            # extract start and end dates from form (date objects)
+            start_date = form.cleaned_data["start_date"]
+            end_date = form.cleaned_data["end_date"]
+
+            # convert to datetime with hours: 00:00 for start, 23:00 for end
+            period_start = datetime.combine(start_date, datetime.min.time())
+            period_end = datetime.combine(end_date, datetime.max.time()).replace(minute=0, second=0, microsecond=0)
+
+            # ensure DateTime column is datetime
+            df['DateTime'] = pd.to_datetime(df['DateTime'])
+            df = df.set_index('DateTime').resample('H').ffill()  # make hourly data
+
+            # prepare parameters
             params = {k: form.cleaned_data[k] for k in [
                 "min_power", "max_power", "ramp_up", "ramp_down", "emissions",
                 "coal_price", "heat_rate", "co2_price_bgn", "startup_cost",
                 "max_startups", "min_cumulative_power", "min_cumulative_uptime"
             ]}
 
-            # --- Build & solve model ---
-            n_hours = len(market_price)
+            # calculate degradation for entire dataset
+            n_hours = len(df)
+            start_datetime = df.index[0]
+            degradation = calculate_degradation(n_hours, start_datetime)
+
+            # build & solve model
+            market_price = df['Price'].values
             model, T = build_model(n_hours, market_price, params, degradation)
             model = solve_model(model)
             power, commitment, startups = extract_results(model, T)
 
-            # --- Financial metrics ---
+            # financial metrics
             financials = compute_financials(power, commitment, startups, market_price, params)
 
-            # --- Determine next index ---
+            # filter data for the selected period
+            mask = (df.index >= period_start) & (df.index <= period_end)
+            df_period = df[mask]
+            hours_period = df_period.index
+
+            power_period = [power[i] for i, t in enumerate(df.index) if t in hours_period]
+            commitment_period = [commitment[i] for i, t in enumerate(df.index) if t in hours_period]
+            startups_period = [startups[i] for i, t in enumerate(df.index) if t in hours_period]
+            market_price_period = df_period['Price'].values
+
+            # determine next index
             existing_files = os.listdir(settings.DATA_OUTPUT_DIR)
             numbers = [int(m.group(1)) for f in existing_files if (m := re.match(r"^(\d{4})_", f))]
             next_index = max(numbers) + 1 if numbers else 1
             index_str = str(next_index).zfill(4)
             date_str = datetime.now().strftime("%Y%m%d")
 
-            # --- Save CSVs ---
+            # save CSVs
             load_curve_df = pd.DataFrame({
-                "Hour": list(T),
-                "Power_Output_MW": power,
-                "Commitment": commitment,
-                "Startups": startups,
-                "Market_Price_BGN_per_MWh": market_price
+                "Hour": list(range(len(power_period))),
+                "Power_Output_MW": power_period,
+                "Commitment": commitment_period,
+                "Startups": startups_period,
+                "Market_Price_BGN_per_MWh": market_price_period
             })
             results_csv_file, load_curve_csv_file = save_results_csv(financials, load_curve_df, index_str, date_str)
 
-            # --- Save plot ---
-            png_file, image_base64 = generate_plot(T, market_price, power, commitment, params["max_power"], index_str,
-                                                   date_str)
+            # save plot
+            png_file, image_base64 = generate_plot(
+                list(range(len(power_period))),
+                market_price_period,
+                power_period,
+                commitment_period,
+                params["max_power"],
+                index_str,
+                date_str
+            )
 
             return render(request, "plotapp/result.html", {
                 "image": image_base64,
@@ -216,7 +263,6 @@ def upload_view(request):
         form = PlantParametersForm()
 
     return render(request, "plotapp/upload.html", {"form": form})
-
 
 def download_curve_csv(request, filename):
     """Serve CSV curve file from DATA_OUTPUT_DIR"""
