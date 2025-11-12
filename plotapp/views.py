@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pyomo.environ as pyo
 from django.conf import settings
 from .forms import PlantParametersForm
-from django.http import Http404, FileResponse
+from django.http import Http404, FileResponse, HttpResponse
 from django.shortcuts import render, redirect
 import matplotlib
 matplotlib.use('Agg')
@@ -163,6 +163,17 @@ def generate_plot(T, market_price, power, commitment, max_power, index_str, date
 
     return png_filename, image_base64
 
+def render_result_template(request, image_base64, financials, results_csv_file, load_curve_csv_file, png_file, run_id):
+    context = {
+        "image": image_base64,
+        "financials": financials,
+        "results_csv_file": results_csv_file,
+        "load_curve_csv_file": load_curve_csv_file,
+        "png_file": png_file,
+        "run_id": run_id,
+    }
+    return render(request, "plotapp/result.html", context)
+
 
 # main view
 def upload_view(request):
@@ -193,7 +204,7 @@ def upload_view(request):
             existing_files = os.listdir(settings.DATA_OUTPUT_DIR)
             numbers = [int(m.group(1)) for f in existing_files if (m := re.match(r"^(\d{4})_", f))]
             next_index = max(numbers) + 1 if numbers else 1
-            index_str = str(next_index).zfill(4)
+            run_id = str(next_index).zfill(4)
             date_str = datetime.now().strftime("%Y%m%d")
 
             # save CSVs
@@ -204,23 +215,55 @@ def upload_view(request):
                 "Startups": startups,
                 "Market_Price_BGN_per_MWh": market_price
             })
-            results_csv_file, load_curve_csv_file = save_results_csv(financials, load_curve_df, index_str, date_str)
+            results_csv_file, load_curve_csv_file = save_results_csv(financials, load_curve_df, run_id, date_str)
 
             # save plot
-            png_file, image_base64 = generate_plot(T, market_price, power, commitment, params["max_power"], index_str,
+            png_file, image_base64 = generate_plot(T, market_price, power, commitment, params["max_power"], run_id,
                                                    date_str)
 
-            return render(request, "plotapp/result.html", {
-                "image": image_base64,
-                "financials": financials,
-                "results_csv_file": results_csv_file,
-                "load_curve_csv_file": load_curve_csv_file,
-                "png_file": png_file
-            })
+            return render_result_template(
+                request,
+                image_base64,
+                financials,
+                results_csv_file,
+                load_curve_csv_file,
+                png_file,
+                run_id=run_id
+            )
+
     else:
         form = PlantParametersForm()
 
     return render(request, "plotapp/upload.html", {"form": form})
+
+
+def view_result(request, run_id):
+    files = os.listdir(settings.DATA_OUTPUT_DIR)
+
+    results_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_results.csv")), None)
+    load_curve_csv_file = next((f for f in files if f.startswith(run_id) and f.endswith("_load_curve.csv")), None)
+    png_file = next((f for f in files if f.startswith(run_id) and f.endswith("_plot.png")), None)
+
+    if not results_csv_file or not load_curve_csv_file or not png_file:
+        raise Http404("Result files not found")
+
+    df_results = pd.read_csv(os.path.join(settings.DATA_OUTPUT_DIR, results_csv_file))
+    financials = dict(zip(df_results["metric"], df_results["value"]))
+
+    # encode PNG for page
+    png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_file)
+    with open(png_path, "rb") as f:
+        image_base64 = base64.b64encode(f.read()).decode("utf-8")
+
+    return render_result_template(
+        request,
+        image_base64,
+        financials,
+        results_csv_file,
+        load_curve_csv_file,
+        png_file,
+        run_id=run_id
+    )
 
 
 def download_curve_csv(request, filename):
@@ -244,6 +287,56 @@ def download_results_csv(request, filename):
         raise Http404("File not found")
     return FileResponse(open(file_path, "rb"), as_attachment=True, filename=filename)
 
+
+# def extract_period(request, run_id):
+#     start_date = request.GET.get("start_date")
+#     end_date = request.GET.get("end_date")
+#
+#     if not start_date or not end_date:
+#         return HttpResponse("Start and end dates are required", status=400)
+#
+#     load_curve_csv_file = f"{run_id}_load_curve.csv"
+#     load_curve_path = os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv_file)
+#     df_load_curve = pd.read_csv(load_curve_path)
+#
+#     mask = (df_load_curve['Date'] >= start_date) & (df_load_curve['Date'] <= end_date)
+#     df_filtered = df_load_curve.loc[mask]
+#
+#     fig, ax = plt.subplots(figsize=(12, 6))
+#     ax.plot(df_filtered['Hour'], df_filtered['Market_Price_BGN_per_MWh'], color='black', label="Market Price")
+#     ax.step(df_filtered['Hour'], df_filtered['Power_Output_MW'], where='mid', label="Power Output")
+#     ax.fill_between(df_filtered['Hour'], 0, df_filtered['Commitment']*df_filtered['Power_Output_MW'].max(),
+#                     color='lightgreen', alpha=0.3, step='mid', label="Committed")
+#     ax.set_xlabel("Hour")
+#     ax.set_ylabel("Value")
+#     ax.legend()
+#     ax.grid(True)
+#     plt.tight_layout()
+#
+#     buf = io.BytesIO()
+#     plt.savefig(buf, format='png')
+#     plt.close(fig)
+#     buf.seek(0)
+#     image_base64 = base64.b64encode(buf.read()).decode("utf-8")
+#
+#     return render(request, "plotapp/result.html", {
+#         "run_id": run_id,
+#         "financials": {},
+#         "load_curve_table": df_filtered.to_html(classes="table table-striped", index=False),
+#         "image": image_base64,
+#         "csv_inline": df_filtered.to_csv(index=False)
+#     })
+
+
+def download_filtered_csv(request):
+    csv_content = request.GET.get("csv")
+    if not csv_content:
+        return HttpResponse("No CSV data provided", status=400)
+    response = HttpResponse(csv_content, content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="extracted_period.csv"'
+    return response
+
+
 def all_results(request):
     files = os.listdir(settings.DATA_OUTPUT_DIR)
     results = []
@@ -260,48 +353,6 @@ def all_results(request):
     results = sorted(results, key=lambda x: int(x[0]), reverse=True)
 
     return render(request, "plotapp/all_results.html", {"results": results})
-
-
-def view_result(request, run_id):
-    files = os.listdir(settings.DATA_OUTPUT_DIR)
-
-    results_csv = None
-    load_curve_csv = None
-    png_file = None
-
-    for f in files:
-        if f.startswith(run_id) and f.endswith("_results.csv"):
-            results_csv = f
-        elif f.startswith(run_id) and f.endswith("_load_curve.csv"):
-            load_curve_csv = f
-        elif f.startswith(run_id) and f.endswith("_plot.png"):
-            png_file = f
-
-    if not results_csv or not load_curve_csv or not png_file:
-        raise Http404("Result files not found")
-
-    # full paths
-    results_csv_path = os.path.join(settings.DATA_OUTPUT_DIR, results_csv)
-    load_curve_csv_path = os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv)
-    png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_file)
-
-    # load CSV files
-    df_results = pd.read_csv(results_csv_path)
-    df_load_curve = pd.read_csv(load_curve_csv_path)
-
-    # encode PNG for page
-    with open(png_path, "rb") as f:
-        image_base64 = base64.b64encode(f.read()).decode("utf-8")
-
-    return render(request, "plotapp/view_result.html", {
-        "run_id": run_id,
-        "results_csv_file": results_csv,
-        "load_curve_csv_file": load_curve_csv,
-        "png_file": png_file,
-        "image": image_base64,
-        "financials_table": df_results.to_html(classes="table table-striped", index=False),
-        "load_curve_table": df_load_curve.to_html(classes="table table-striped", index=False)
-    })
 
 
 def delete_result(request, run_id):
@@ -321,3 +372,4 @@ def delete_result(request, run_id):
         raise Http404("No files found to delete for this run_id")
 
     return redirect("all_results")
+

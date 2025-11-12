@@ -11,13 +11,6 @@
     <img src="data:image/png;base64,{{ image }}" alt="Forward Curve" class="img-fluid">
   </div>
 
-  <!-- Download Buttons -->
-    <div class="text-center mb-4">
-        <a class="btn btn-primary" href="{% url 'download_curve_csv' load_curve_csv_file %}">Download Load Curve CSV</a>
-        <a class="btn btn-primary" href="{% url 'download_png' png_file %}">Download PNG</a>
-        <a class="btn btn-primary" href="{% url 'download_results_csv' results_csv_file %}">Download Results CSV</a>
-    </div>
-
   <!-- Financial Metrics -->
   <h3>Financial Metrics</h3>
   <div class="table-responsive">
@@ -78,7 +71,28 @@
       </tbody>
     </table>
   </div>
-
+    
+{#  <!-- Extract Period Form -->#}
+{#  <div class="text-center mt-4">#}
+{#    <form method="get" action="{% url 'extract_period' run_id %}">#}
+{#      <label>Start date: <input type="date" name="start_date" required></label>#}
+{#      <label>End date: <input type="date" name="end_date" required></label>#}
+{#      <button type="submit" class="btn btn-primary">Extract</button>#}
+{#    </form>#}
+{#  </div>#}
+    
+    <!-- Download Buttons -->
+  <div class="text-center mb-4">
+    {% if load_curve_csv_file %}
+      <a class="btn btn-primary" href="{% url 'download_curve_csv' load_curve_csv_file %}">Download Load Curve CSV</a>
+    {% endif %}
+    {% if png_file %}
+      <a class="btn btn-primary" href="{% url 'download_png' png_file %}">Download PNG</a>
+    {% endif %}
+    {% if results_csv_file %}
+      <a class="btn btn-primary" href="{% url 'download_results_csv' results_csv_file %}">Download Results CSV</a>
+    {% endif %}
+  </div>
   <div class="text-center mt-4">
     <a href="/" class="btn btn-secondary">Upload another file</a>
   </div>
