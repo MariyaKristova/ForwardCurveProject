@@ -1,33 +1,17 @@
 import os
 import re
-
+import base64
+from datetime import datetime
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import pyomo.environ as pyo
 from django.conf import settings
-from django.contrib import messages
-from django.http import Http404, FileResponse, HttpResponseNotAllowed
+from .forms import PlantParametersForm
+from django.http import Http404, FileResponse
 from django.shortcuts import render, redirect
-from .forms import PlantParametersForm
-import pyomo.environ as pyo
 import matplotlib
-matplotlib.use('Agg')  # for servers with no GUI
-import matplotlib.pyplot as plt
-import io
-import base64
-import numpy as np
-from datetime import datetime
-
-import os
-import re
-import base64
-from datetime import datetime
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import pyomo.environ as pyo
-
-from django.conf import settings
-from django.shortcuts import render
-from .forms import PlantParametersForm
+matplotlib.use('Agg')
 
 
 # --- Utility functions ---
