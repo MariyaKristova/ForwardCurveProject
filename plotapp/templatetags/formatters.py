@@ -2,9 +2,12 @@ from django import template
 register = template.Library()
 
 @register.filter
-def space_thousands(value):
+def space_thousands(value, decimal_places=None):
     try:
-        s = f"{value:,.2f}"
-        return " ".join(s.split(","))
-    except:
+        if decimal_places is None:
+            formatted = f"{int(round(value)):,}"
+        else:
+            formatted = f"{value:,.{int(decimal_places)}f}"
+        return formatted.replace(",", " ")
+    except (ValueError, TypeError):
         return value
