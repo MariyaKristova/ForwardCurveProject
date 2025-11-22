@@ -1,4 +1,5 @@
 {% extends "plotapp/base.html" %}
+{% load static %}
 {% load formatters %}
 {% block title %}Unit Commitment Optimization{% endblock %}
 
@@ -6,9 +7,14 @@
 <div class="card shadow p-4 mb-4">
   <h2 class="text-center mb-4">Result {{ run_id }}</h2>
 
-  <!-- Forward Curve Plot -->
+  <!-- Plotly.js -->
+    <script src="{% static 'plotly/plotly-latest.min.js' %}"></script>
+
+  <!-- Interactive graph -->
   <div class="text-center mb-4">
-    <img src="data:image/png;base64,{{ image }}" alt="Forward Curve" class="img-fluid">
+    {% if graph %}
+    {{ graph|safe }}
+    {% endif %}
   </div>
 
   <!-- Financial Metrics -->

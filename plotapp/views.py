@@ -5,6 +5,8 @@ from io import StringIO, BytesIO
 import csv
 import base64
 from datetime import datetime
+from lib2to3.fixes.fix_input import context
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,6 +17,8 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import render, redirect
 import matplotlib
 matplotlib.use('Agg')
+import plotly.graph_objs as go
+from plotly.offline import plot
 
 
 # UTILITIES
@@ -196,6 +200,42 @@ def save_results_csv(financials, load_curve_df, index_str, date_str, params):
     return results_csv_filename, load_curve_csv_filename
 
 # PLOTTING VIEWS
+import plotly.graph_objs as go
+from plotly.offline import plot
+
+def create_interactive_plot(T, market_price, power, commitment, max_power, title):
+    T = list(T)
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=T, y=market_price, mode='lines', name='Market Price (BGN/MWh)', line=dict(color='black')
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=T, y=power, mode='lines', name='Power Output (MW)', line=dict(width=2)
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=T + T[::-1],
+        y=[max_power*u for u in commitment] + [0]*len(T),
+        fill='toself',
+        fillcolor='rgba(144,238,144,0.3)',
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo='skip',
+        name='Committed'
+    ))
+
+    fig.update_layout(
+        title=title,
+        xaxis_title='Hour',
+        yaxis_title='Value',
+        hovermode='x unified',
+        template='plotly_white'
+    )
+
+    return plot(fig, output_type='div', include_plotlyjs=False)
+
+
 def create_plot_fig(T, market_price, power, commitment, max_power, title):
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
@@ -311,22 +351,22 @@ def upload_view(request):
             })
             results_csv_file, load_curve_csv_file = save_results_csv(financials, load_curve_df, run_id, date_str, params)
 
-            # save plot
-            png_file, image_base64 = full_plot(T, market_price, power, commitment, params["max_power"], run_id,
-                                                   date_str)
+            # create interactive plot
+            interactive_graph = create_interactive_plot(T, market_price, power, commitment, params["max_power"],
+                                                        "Unit Commitment with Economic Dispatch")
 
             extract_form = ExtractPeriodForm()
 
-            return render_result_template(
-                request,
-                image_base64,
-                financials,
-                results_csv_file,
-                load_curve_csv_file,
-                png_file,
-                run_id=run_id,
-                extract_form=extract_form,
-            )
+            context = {
+                "graph": interactive_graph,
+                "financials": financials,
+                "results_csv_file": results_csv_file,
+                "load_curve_csv_file": load_curve_csv_file,
+                "run_id": run_id,
+                "extract_form": extract_form,
+            }
+
+            return render(request, "plotapp/result.html", context)
 
     else:
         form = PlantParametersForm()
