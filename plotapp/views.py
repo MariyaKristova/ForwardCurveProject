@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import pyomo.environ as pyo
 from django.conf import settings
 from .forms import PlantParametersForm, ExtractPeriodForm
-from django.http import Http404, FileResponse, HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import render, redirect
 import matplotlib
 matplotlib.use('Agg')
@@ -155,6 +155,7 @@ def compute_financials(power, commitment, startups, market_price, params, degrad
 
     total_power = sum(power)
     return {
+        "total_power": total_power,
         "total_commitment_hours": sum(commitment),
         "relative_uptime_percent": (sum(commitment) / len(power)) * 100,
         "total_revenue": revenue,
@@ -194,11 +195,8 @@ def save_results_csv(financials, load_curve_df, index_str, date_str, params):
 
     return results_csv_filename, load_curve_csv_filename
 
-# PLOTTING VIEW
-def generate_plot(T, market_price, power, commitment, max_power, index_str, date_str):
-    png_filename = f"{index_str}_{date_str}_plot.png"
-    png_path = os.path.join(settings.DATA_OUTPUT_DIR, png_filename)
-
+# PLOTTING VIEWS
+def create_plot_fig(T, market_price, power, commitment, max_power, title):
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
     ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
@@ -206,17 +204,52 @@ def generate_plot(T, market_price, power, commitment, max_power, index_str, date
                     label="Committed")
     ax.set_xlabel("Hour")
     ax.set_ylabel("Value")
-    ax.set_title("Unit Commitment with Economic Dispatch")
+    ax.set_title(title)
     ax.legend()
     ax.grid(True)
     plt.tight_layout()
-    plt.savefig(png_path)
+
+    return fig
+
+
+def figure_to_png_bytes(fig):
+    buffer = BytesIO()
+    fig.savefig(buffer, format='png')
     plt.close(fig)
+    buffer.seek(0)
+    return buffer.read()
 
-    with open(png_path, "rb") as f:
-        image_base64 = base64.b64encode(f.read()).decode("utf-8")
 
-    return png_filename, image_base64
+def png_bytes_to_base64(png_bytes):
+    return base64.b64encode(png_bytes).decode("utf-8")
+
+
+def save_png_to_file(png_bytes, filename):
+    png_path = os.path.join(settings.DATA_OUTPUT_DIR, filename)
+    with open(png_path, "wb") as f:
+        f.write(png_bytes)
+    return png_path
+
+
+def full_plot(T, market_price, power, commitment, max_power, index_str, date_str):
+    png_filename = f"{index_str}_{date_str}_plot.png"
+    fig = create_plot_fig(T, market_price, power, commitment, max_power, title="Unit Commitment with Economic Dispatch")
+    png_bytes = figure_to_png_bytes(fig)
+    save_png_to_file(png_bytes, png_filename)
+
+    return png_filename, png_bytes_to_base64(png_bytes)
+
+
+def extracted_plot(T, market_price, power, commitment, max_power, title, return_bytes=False):
+    fig = create_plot_fig(T, market_price, power, commitment, max_power, title)
+    png_bytes = figure_to_png_bytes(fig)
+
+    # for download zip view
+    if return_bytes:
+        return png_bytes
+    # for extracted result view
+    else:
+        return png_bytes_to_base64(png_bytes)
 
 # RENDERING VIEW
 def render_result_template(request, image_base64, financials, results_csv_file, load_curve_csv_file, png_file, run_id, extract_form):
@@ -279,7 +312,7 @@ def upload_view(request):
             results_csv_file, load_curve_csv_file = save_results_csv(financials, load_curve_df, run_id, date_str, params)
 
             # save plot
-            png_file, image_base64 = generate_plot(T, market_price, power, commitment, params["max_power"], run_id,
+            png_file, image_base64 = full_plot(T, market_price, power, commitment, params["max_power"], run_id,
                                                    date_str)
 
             extract_form = ExtractPeriodForm()
@@ -424,30 +457,6 @@ def extract_range_data(period_df):
 
     return T, power, commitment, startups, market_price, year
 
-# TODO !!!! COMBINE WITH GENERATE_PLOT
-def create_plot_base64(T, market_price, power, commitment, max_power, title, return_bytes=False):
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.plot(T, market_price, label="Market Price (BGN/MWh)", color='black')
-    ax.step(T, power, where='mid', label="Power Output (MW)", linewidth=2)
-    ax.fill_between(T, 0, [max_power * u for u in commitment], color='lightgreen', alpha=0.3, step='mid', label="Committed")
-    ax.set_xlabel("Hour")
-    ax.set_ylabel("Value")
-    ax.set_title(title)
-    ax.legend()
-    ax.grid(True)
-    plt.tight_layout()
-    buffer = BytesIO()
-    fig.savefig(buffer, format='png')
-    plt.close(fig)
-    buffer.seek(0)
-
-    # for download zip view
-    if return_bytes:
-        return buffer.read()
-    # for extracted result view
-    else:
-        return base64.b64encode(buffer.read()).decode("utf-8")
-
 
 def extracted_result_view(request, run_id):
     # read params from results csv and load curve
@@ -477,7 +486,7 @@ def extracted_result_view(request, run_id):
                 financials = compute_financials(power, commitment, startups, market_price, params, degradation)
 
                 # generate PNG in memory
-                image_base64 = create_plot_base64(T, market_price, power, commitment, max_power=params["max_power"], title="Unit Commitment")
+                image_base64 = extracted_plot(T, market_price, power, commitment, max_power=params["max_power"], title="Unit Commitment with Economic Dispatch (Extracted)")
 
         else:
             return view_result(request, run_id, extract_form=extract_form)
@@ -530,7 +539,7 @@ def download_extracted_zip(request, run_id):
         zf.writestr(f"{run_id}_extracted_financials.csv", fin_buffer.getvalue().encode("utf-8"))
 
         # PNG in memory
-        png_bytes = create_plot_base64(
+        png_bytes = extracted_plot(
             T=T,
             market_price=market_price,
             power=power,
