@@ -1,21 +1,28 @@
+# standard library
 import os
 import re
-import zipfile
 import csv
+import zipfile
 import base64
 from datetime import datetime
-import pandas as pd
+
+# third-party libraries
 import numpy as np
-import matplotlib.pyplot as plt
-import pyomo.environ as pyo
-from django.conf import settings
-from .forms import PlantParametersForm, ExtractPeriodForm
-from django.http import Http404, HttpResponse
-from django.shortcuts import render, redirect
+import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import pyomo.environ as pyo
 import plotly.graph_objs as go
 import plotly.io as pio
+
+# django
+from django.conf import settings
+from django.http import Http404, HttpResponse
+from django.shortcuts import render, redirect
+
+# local app imports
+from .forms import PlantParametersForm, ExtractPeriodForm
 
 
 # UTILITIES
