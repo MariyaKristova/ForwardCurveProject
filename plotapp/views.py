@@ -369,7 +369,7 @@ def upload_view(request):
             numbers = [int(m.group(1)) for f in existing_files if (m := re.match(r"^(\d{4})_", f))]
             next_index = max(numbers) + 1 if numbers else 1
             run_id = str(next_index).zfill(4)
-            date_str = datetime.now().strftime("%Y%m%d")
+            date_str = datetime.now().strftime("%Y%m%d_%H%M")
 
             # save load curve with DateTime
             load_curve_df = pd.DataFrame({
@@ -456,11 +456,16 @@ def all_results(request):
 
     for f in files:
         if f.endswith("_results.csv"):
-            # format: 0001_20251108_results.csv
-            parts = f.split("_")  # ["0001","20251108","results.csv"]
+            # format: 0001_20251108_1100_results.csv
+            parts = f.split("_")  # ["0001","20251108", "1100", "results.csv"]
             run_id = parts[0]
-            date = parts[1]
-            results.append((run_id, date))
+            date_raw = parts[1]
+            time_raw = parts[2]
+
+            dt = datetime.strptime(date_raw + time_raw, "%Y%m%d%H%M")
+            date_output = dt.strftime("%d %B %Y %H:%M")
+
+            results.append((run_id, date_output))
 
     # sort descending by run_id
     results = sorted(results, key=lambda x: int(x[0]), reverse=True)
