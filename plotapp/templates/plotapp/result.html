@@ -5,7 +5,9 @@
 
 {% block content %}
 <div class="card shadow p-4 mb-4">
-  <h2 class="text-center mb-4">Result {{ run_id }}</h2>
+    <h4 class="text-center mb-4">Result {{ run_id }}</h4>
+    <h5 class="text-center mb-4">Created on {{ date }}</h5>
+
 
   <!-- Plotly.js -->
     <script src="{% static 'plotly/plotly-latest.min.js' %}"></script>

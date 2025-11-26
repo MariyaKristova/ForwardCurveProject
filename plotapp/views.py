@@ -112,6 +112,17 @@ def read_data_from_load_curve(period_df):
     return T, power, commitment, startups, market_price, year
 
 
+def get_date_from_filename(filename):
+        # format: 0001_20251108_1100_results.csv
+        try:
+            parts = filename.split("_")
+            date_raw = parts[1]
+            time_raw = parts[2]
+            dt = datetime.strptime(date_raw + time_raw, "%Y%m%d%H%M")
+            return dt.strftime("%d %B %Y %H:%M")
+        except Exception:
+            return "Unknown"
+
 # PYOMO MODEL VIEWS
 def build_model(n_hours, market_price, params, degradation):
     T = range(n_hours)
@@ -370,6 +381,8 @@ def upload_view(request):
             next_index = max(numbers) + 1 if numbers else 1
             run_id = str(next_index).zfill(4)
             date_str = datetime.now().strftime("%Y%m%d_%H%M")
+            dt = datetime.strptime(date_str, "%Y%m%d_%H%M")
+            date = dt.strftime("%d %B %Y %H:%M")
 
             # save load curve with DateTime
             load_curve_df = pd.DataFrame({
@@ -398,6 +411,7 @@ def upload_view(request):
                 "run_id": run_id,
                 "png_file": png_file,
                 "extract_form": extract_form,
+                "date": date,
             }
 
             return render(request, "plotapp/result.html", context)
@@ -416,6 +430,9 @@ def view_result(request, run_id, extract_form=None):
     results_csv_file = read_results_csv(run_id)
     df_results = pd.read_csv(os.path.join(settings.DATA_OUTPUT_DIR, results_csv_file))
     financials = dict(zip(df_results["metric"], df_results["value"]))
+
+    # read date
+    date = get_date_from_filename(results_csv_file)
 
     # read load curve csv
     load_curve_csv_file = read_load_curve(run_id)
@@ -445,6 +462,7 @@ def view_result(request, run_id, extract_form=None):
         "run_id": run_id,
         "png_file": png_file,
         "extract_form": extract_form,
+        "date": date,
     }
 
     return render(request, "plotapp/result.html", context)
@@ -456,15 +474,8 @@ def all_results(request):
 
     for f in files:
         if f.endswith("_results.csv"):
-            # format: 0001_20251108_1100_results.csv
-            parts = f.split("_")  # ["0001","20251108", "1100", "results.csv"]
-            run_id = parts[0]
-            date_raw = parts[1]
-            time_raw = parts[2]
-
-            dt = datetime.strptime(date_raw + time_raw, "%Y%m%d%H%M")
-            date_output = dt.strftime("%d %B %Y %H:%M")
-
+            date_output = get_date_from_filename(f)
+            run_id = f.split("_")[0]
             results.append((run_id, date_output))
 
     # sort descending by run_id
