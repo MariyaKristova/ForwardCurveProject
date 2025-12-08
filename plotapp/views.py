@@ -288,7 +288,9 @@ def create_interactive_plot(T, market_price, power, commitment, max_power, title
         xaxis_title='hour',
         yaxis_title='value',
         template='plotly_white',
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        xaxis = dict(fixedrange=False),
+        yaxis = dict(fixedrange=True)
     )
 
     return fig
