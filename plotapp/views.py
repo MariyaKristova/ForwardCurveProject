@@ -340,20 +340,6 @@ def full_plot(T, market_price, power, commitment, max_power, index_str, date_str
         "fig": fig
     }
 
-# RENDERING VIEW
-def render_result_template(request, image_base64, financials, results_csv_file, load_curve_csv_file, png_file, run_id, extract_form):
-    context = {
-        "image": image_base64,
-        "financials": financials,
-        "results_csv_file": results_csv_file,
-        "load_curve_csv_file": load_curve_csv_file,
-        "png_file": png_file,
-        "run_id": run_id,
-        "extract_form": extract_form,
-    }
-    return render(request, "plotapp/result.html", context)
-
-
 # MAIN VIEWS
 def upload_view(request):
     if request.method == "POST":
