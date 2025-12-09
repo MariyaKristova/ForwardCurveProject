@@ -320,8 +320,13 @@ def generate_interactive_html(fig):
 
 def full_plot(T, market_price, power, commitment, max_power, index_str, date_str, date_series=None):
     fig = create_interactive_plot(
-        T, market_price, power, commitment, max_power,
-        title="Unit Commitment with Economic Dispatch", date_series=date_series
+        T,
+        market_price,
+        power,
+        commitment,
+        max_power,
+        title="Unit Commitment with Economic Dispatch",
+        date_series=date_series
     )
 
     # save png on server
@@ -341,6 +346,7 @@ def full_plot(T, market_price, power, commitment, max_power, index_str, date_str
         "html": html_code,
         "fig": fig
     }
+
 
 # MAIN VIEWS
 def upload_view(request):
@@ -589,7 +595,6 @@ def extracted_result_view(request, run_id):
 
     extract_form = ExtractPeriodForm(request.POST or None)
     financials = {}
-    image_base64 = ""
     html_chart = ""
     start_date = None
     end_date = None
@@ -618,14 +623,12 @@ def extracted_result_view(request, run_id):
                     title="Unit Commitment with Economic Dispatch (Extracted)",
                     date_series=date_series
                 )
-                image_base64 = plot_data["png_base64"]
                 html_chart = plot_data["html"]
 
         else:
             return view_result(request, run_id, extract_form=extract_form)
 
     context = {
-        "image": image_base64,
         "interactive_html": html_chart,
         "financials": financials,
         "run_id": run_id,
@@ -695,6 +698,4 @@ def custom_404(request, exception):
 
 def custom_500(request):
     return render(request, "plotapp/errors/500.html", status=500)
-
-
 
