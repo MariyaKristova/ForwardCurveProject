@@ -5,6 +5,7 @@ import csv
 import zipfile
 import base64
 from datetime import datetime
+from io import BytesIO, StringIO
 
 # third-party libraries
 import numpy as np
@@ -437,8 +438,15 @@ def view_result(request, run_id, extract_form=None):
     # read max_power for parameters section of results csv
     params = read_params_from_results_csv(run_id)
 
-    fig = create_interactive_plot(T, market_price, power, commitment, params["max_power"],
-                            "Unit Commitment with Economic Dispatch", date_series=load_curve_df['DateTime'])
+    fig = create_interactive_plot(
+        T,
+        market_price,
+        power,
+        commitment,
+        params["max_power"],
+        "Unit Commitment with Economic Dispatch",
+        date_series=load_curve_df['DateTime']
+    )
 
     # generate html for embedding interactive plot in the page
     interactive_graph = generate_interactive_html(fig)
@@ -527,7 +535,7 @@ def download_results_csv(request, filename):
     return download_file(file_path, filename)
 
 
-# EXTRACTED PERIOD VIEWS ------------ TODO
+# EXTRACTED PERIOD VIEWS
 def filter_load_curve_by_dates(load_curve_df, extract_form):
     start_date = extract_form.cleaned_data['start_date']
     end_date = extract_form.cleaned_data['end_date']
@@ -548,8 +556,40 @@ def extract_range_data(period_df):
     startups = period_df["Startups"].to_list()
     market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
     year = period_df['DateTime'].dt.year.iloc[0]
+    date_series = period_df['DateTime'].to_list()
 
-    return T, power, commitment, startups, market_price, year
+    return T, power, commitment, startups, market_price, year, date_series
+
+
+def extracted_plot(T, market_price, power, commitment, max_power, title, date_series, return_bytes=False):
+    # behaves similarly to full_plot, but does NOT save files
+    fig = create_interactive_plot(
+        T=T,
+        market_price=market_price,
+        power=power,
+        commitment=commitment,
+        max_power=max_power,
+        title=title,
+        date_series=date_series
+    )
+
+    # PNG bytes (same result as save_plot_png, but in-memory)
+    png_bytes = fig.to_image(format="png")
+
+    if return_bytes:
+        return png_bytes
+
+    # base64 for <img>
+    png_base64 = base64.b64encode(png_bytes).decode("utf-8")
+
+    # HTML for iframe interactive graph
+    html_code = generate_interactive_html(fig)
+
+    return {
+        "png_base64": png_base64,
+        "html": html_code,
+        "fig": fig
+    }
 
 
 def extracted_result_view(request, run_id):
@@ -561,6 +601,7 @@ def extracted_result_view(request, run_id):
     extract_form = ExtractPeriodForm(request.POST or None)
     financials = {}
     image_base64 = ""
+    html_chart = ""
     start_date = None
     end_date = None
 
@@ -573,20 +614,30 @@ def extracted_result_view(request, run_id):
 
             else:
                 # extract data for financials and plot
-                T, power, commitment, startups, market_price, year = extract_range_data(period_df)
+                T, power, commitment, startups, market_price, year, date_series = extract_range_data(period_df)
                 degradation = calculate_degradation(len(period_df), year)
 
                 # compute financials
                 financials = compute_financials(power, commitment, startups, market_price, params, degradation)
 
-                # generate PNG in memory
-                image_base64 = extracted_plot(T, market_price, power, commitment, max_power=params["max_power"], title="Unit Commitment with Economic Dispatch (Extracted)")
+                plot_data = extracted_plot(
+                    T,
+                    market_price,
+                    power,
+                    commitment,
+                    max_power=params["max_power"],
+                    title="Unit Commitment with Economic Dispatch (Extracted)",
+                    date_series=date_series
+                )
+                image_base64 = plot_data["png_base64"]
+                html_chart = plot_data["html"]
 
         else:
             return view_result(request, run_id, extract_form=extract_form)
 
     context = {
         "image": image_base64,
+        "interactive_html": html_chart,
         "financials": financials,
         "run_id": run_id,
         "extract_form": extract_form,
@@ -612,7 +663,7 @@ def download_extracted_zip(request, run_id):
         raise Http404("No data for selected period")
 
     # extract data for financials and plot
-    T, power, commitment, startups, market_price, year = extract_range_data(period_df)
+    T, power, commitment, startups, market_price, year, date_series = extract_range_data(period_df)
     degradation = calculate_degradation(len(period_df), year)
     financials = compute_financials(power, commitment, startups, market_price, params, degradation)
 
@@ -632,7 +683,6 @@ def download_extracted_zip(request, run_id):
             writer.writerow([k, v])
         zf.writestr(f"{run_id}_extracted_financials.csv", fin_buffer.getvalue().encode("utf-8"))
 
-        # PNG in memory
         png_bytes = extracted_plot(
             T=T,
             market_price=market_price,
@@ -640,6 +690,7 @@ def download_extracted_zip(request, run_id):
             commitment=commitment,
             max_power=params["max_power"],
             title="Unit Commitment with Economic Dispatch (Extracted)",
+            date_series=date_series,
             return_bytes=True
         )
         zf.writestr(f"{run_id}_extracted_plot.png", png_bytes)
