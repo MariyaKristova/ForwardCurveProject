@@ -1,11 +1,11 @@
 from django.shortcuts import render
-from .views_utils import create_interactive_plot, full_plot, save_results_csv, generate_interactive_html
+from .views_utils import full_plot, save_results_csv
 from .views_utils import read_excel_file, calculate_degradation, build_model, solve_model, extract_results, compute_financials
-from .forms import PlantParametersForm, ExtractPeriodForm
 from django.conf import settings
 import os, re
 from datetime import datetime
 import pandas as pd
+from ..forms import PlantParametersForm, ExtractPeriodForm
 
 
 def upload_view(request):

@@ -1,12 +1,15 @@
 from django.http import HttpResponse, Http404
 from django.conf import settings
 import os
-from .views_extracted import extracted_plot
-from .views_utils import read_load_curve, read_params_from_results_csv, filter_load_curve_by_dates, compute_financials
+from .views_extracted import extracted_plot, filter_load_curve_by_dates
+from .views_utils import read_load_curve, read_params_from_results_csv, compute_financials, \
+    read_data_from_load_curve, calculate_degradation
 import pandas as pd
 from io import BytesIO, StringIO
 import zipfile
 import csv
+
+from ..forms import ExtractPeriodForm
 
 
 def download_file(file_path, download_name):
