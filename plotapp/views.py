@@ -226,40 +226,45 @@ def save_results_csv(financials, load_curve_df, index_str, date_str, params):
     return results_csv_filename, load_curve_csv_filename
 
 # PLOTTING VIEWS
-def create_interactive_plot(T, market_price, power, commitment, max_power, title):
+def create_interactive_plot(T, market_price, power, commitment, max_power, title, date_series=None):
     # convert inputs to lists (range or other iterables)
-    T = list(T)
     market_price = list(market_price)
     power = list(power)
     commitment = list(commitment)
+
+    if date_series is not None:
+        x_axis = list(date_series)
+    else:
+        x_axis = list(T)
 
     # create step curve for power and commitment
     T_step = []
     power_step = []
     commit_step = []
 
-    for i in range(len(T)-1):
+    for i in range(len(x_axis)-1):
         # duplicate points to make steps
-        T_step.extend([T[i], T[i+1]])
+        T_step.extend([x_axis[i], x_axis[i+1]])
         power_step.extend([power[i], power[i]])
         commit_step.extend([max_power * commitment[i], max_power * commitment[i]])
 
     # append last point
-    T_step.append(T[-1])
+    T_step.append(x_axis[-1])
     power_step.append(power[-1])
     commit_step.append(max_power * commitment[-1])
 
     # create hover text showing all three values at each original hour
     hover_combined = [
-        f"hour: {t}<br>market price: {mp:.2f} bgn/mwh<br>power output: {p:.2f} mw<br>committed: {c:.2f} mw"
-        for t, mp, p, c in zip(T, market_price, power, [max_power*u for u in commitment])
+        f"{x_axis[i]:%d %b %Y %H:%M} <br> market price: {market_price[i]:.2f} bgn/mwh <br>"
+        f"power output: {power[i]:.2f} mw<br>committed: {max_power * commitment[i]:.2f} mw"
+        for i in range(len(x_axis))
     ]
 
     fig = go.Figure()
 
     # market price line (hover shows all three values)
     fig.add_trace(go.Scatter(
-        x=T, y=market_price, mode='lines', name='Market price (BGN/MWh)',
+        x=x_axis, y=market_price, mode='lines', name='Market price (BGN/MWh)',
         line=dict(color='black'),
         hoverinfo='text', hovertext=hover_combined
     ))
@@ -285,8 +290,8 @@ def create_interactive_plot(T, market_price, power, commitment, max_power, title
     # layout settings
     fig.update_layout(
         title=title,
-        xaxis_title='hour',
-        yaxis_title='value',
+        xaxis_title='Date & Time',
+        yaxis_title='Value',
         template='plotly_white',
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         xaxis = dict(fixedrange=False),
@@ -311,10 +316,10 @@ def generate_interactive_html(fig):
     return fig.to_html(include_plotlyjs='cdn', full_html=False)
 
 
-def full_plot(T, market_price, power, commitment, max_power, index_str, date_str):
+def full_plot(T, market_price, power, commitment, max_power, index_str, date_str, date_series=None):
     fig = create_interactive_plot(
         T, market_price, power, commitment, max_power,
-        title="Unit Commitment with Economic Dispatch"
+        title="Unit Commitment with Economic Dispatch", date_series=date_series
     )
 
     # save png on server
@@ -398,7 +403,7 @@ def upload_view(request):
             results_csv_file, load_curve_csv_file = save_results_csv(financials, load_curve_df, run_id, date_str, params)
 
             # create interactive plot
-            plot_output = full_plot(T, market_price, power, commitment, params["max_power"], run_id, date_str)
+            plot_output = full_plot(T, market_price, power, commitment, params["max_power"], run_id, date_str, date_series=load_curve_df['DateTime'])
 
             png_file = plot_output["png_file"]
             interactive_graph = plot_output["html"]
@@ -447,7 +452,7 @@ def view_result(request, run_id, extract_form=None):
     params = read_params_from_results_csv(run_id)
 
     fig = create_interactive_plot(T, market_price, power, commitment, params["max_power"],
-                            "Unit Commitment with Economic Dispatch")
+                            "Unit Commitment with Economic Dispatch", date_series=load_curve_df['DateTime'])
 
     # generate html for embedding interactive plot in the page
     interactive_graph = generate_interactive_html(fig)
