@@ -109,8 +109,9 @@ def read_data_from_load_curve(period_df):
     startups = period_df["Startups"].to_list()
     market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
     year = period_df['DateTime'].dt.year.iloc[0]
+    date_series = period_df['DateTime'].to_list()
 
-    return T, power, commitment, startups, market_price, year
+    return T, power, commitment, startups, market_price, year, date_series
 
 
 def get_date_from_filename(filename):
@@ -433,7 +434,7 @@ def view_result(request, run_id, extract_form=None):
     load_curve_df = pd.read_csv(os.path.join(settings.DATA_OUTPUT_DIR, load_curve_csv_file), parse_dates=['DateTime'])
 
     # convert load curve dataframe into arrays for plotting
-    T, power, commitment, startups, market_price, year = read_data_from_load_curve(load_curve_df)
+    T, power, commitment, startups, market_price, year, date_series = read_data_from_load_curve(load_curve_df)
 
     # read max_power for parameters section of results csv
     params = read_params_from_results_csv(run_id)
@@ -445,7 +446,7 @@ def view_result(request, run_id, extract_form=None):
         commitment,
         params["max_power"],
         "Unit Commitment with Economic Dispatch",
-        date_series=load_curve_df['DateTime']
+        date_series=date_series,
     )
 
     # generate html for embedding interactive plot in the page
@@ -549,18 +550,6 @@ def filter_load_curve_by_dates(load_curve_df, extract_form):
     return period_df, start_date, end_date
 
 
-def extract_range_data(period_df):
-    T = list(range(len(period_df)))
-    power = period_df["Power_Output_MW"].to_list()
-    commitment = period_df["Commitment"].to_list()
-    startups = period_df["Startups"].to_list()
-    market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
-    year = period_df['DateTime'].dt.year.iloc[0]
-    date_series = period_df['DateTime'].to_list()
-
-    return T, power, commitment, startups, market_price, year, date_series
-
-
 def extracted_plot(T, market_price, power, commitment, max_power, title, date_series, return_bytes=False):
     # behaves similarly to full_plot, but does NOT save files
     fig = create_interactive_plot(
@@ -614,7 +603,7 @@ def extracted_result_view(request, run_id):
 
             else:
                 # extract data for financials and plot
-                T, power, commitment, startups, market_price, year, date_series = extract_range_data(period_df)
+                T, power, commitment, startups, market_price, year, date_series = read_data_from_load_curve(period_df)
                 degradation = calculate_degradation(len(period_df), year)
 
                 # compute financials
@@ -663,7 +652,7 @@ def download_extracted_zip(request, run_id):
         raise Http404("No data for selected period")
 
     # extract data for financials and plot
-    T, power, commitment, startups, market_price, year, date_series = extract_range_data(period_df)
+    T, power, commitment, startups, market_price, year, date_series = read_data_from_load_curve(period_df)
     degradation = calculate_degradation(len(period_df), year)
     financials = compute_financials(power, commitment, startups, market_price, params, degradation)
 
