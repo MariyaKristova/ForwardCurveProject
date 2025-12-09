@@ -6,12 +6,14 @@
 <div class="card shadow p-4 mb-4">
   <h2 class="text-center mb-4">Extracted Result</h2>
 
-  <!-- forward curve plot for selected period -->
+   <!-- Interactive graph for selected period -->
   <div class="text-center mb-4">
-    <img src="data:image/png;base64,{{ image }}" alt="Forward Curve" class="img-fluid">
+    {% if interactive_html %}
+    {{ interactive_html|safe }}
+    {% endif %}
   </div>
 
-  <!-- financial metrics for selected period -->
+  <!-- Financial metrics for selected period -->
   <h3>Financial Metrics</h3>
   <div class="table-responsive">
     <table class="table table-striped">
@@ -76,10 +78,10 @@
     </table>
   </div>
 
-  <div class="text-center mt-4">
-      <a href="{% url 'download_extracted_zip' run_id=run_id %}?start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-secondary">Download Extracted Result (ZIP)</a>
-      <a href="{% url 'all_results' %}" class="btn btn-secondary">Back to All Results</a>
-      <a href="/" class="btn btn-secondary">New Task</a>
+  <div class="text-center mb-4">
+      <a class="btn btn-primary" href="{% url 'download_extracted_zip' run_id=run_id %}?start_date={{ start_date }}&end_date={{ end_date }}">Download Extracted Result (ZIP)</a>
+      <a class="btn btn-primary" href="{% url 'all_results' %}" >Back to All Results</a>
+      <a class="btn btn-primary" href="/" >New Task</a>
   </div>
 </div>
 {% endblock %}
