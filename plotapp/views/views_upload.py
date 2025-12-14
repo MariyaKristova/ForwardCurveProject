@@ -23,7 +23,7 @@ def upload_view(request):
             # prepare parameters
             params = {k: form.cleaned_data[k] for k in [
                 "min_power", "max_power", "ramp_up", "ramp_down", "emissions",
-                "coal_price", "heat_rate", "co2_price_bgn", "startup_cost",
+                "coal_price", "heat_rate", "co2_price_eur", "startup_cost",
                 "max_startups", "min_cumulative_power", "min_cumulative_uptime"
             ]}
 
