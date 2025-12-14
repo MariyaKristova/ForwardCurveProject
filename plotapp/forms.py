@@ -13,10 +13,10 @@ class PlantParametersForm(forms.Form):
     emissions = forms.FloatField(initial=1.447, label="Emissions (t CO2/MWh)")
     # offered price field is not being used for now
     # offered_price = forms.FloatField(initial=312, label="Offered Price (BGN)")
-    coal_price = forms.FloatField(initial=2.98e-6, label="Coal Price (BGN/kJ)")
+    coal_price = forms.FloatField(initial=2.98e-6, label="Coal Price (EUR/kJ)")
     heat_rate = forms.FloatField(initial=10322e3, label="Heat Rate (kJ/MWh)")
-    co2_price_bgn = forms.FloatField(initial=81.56 * 1.95583, label="CO2 Price (BGN/t)")
-    startup_cost = forms.FloatField(initial=49191, label="Startup Cost (BGN)")
+    co2_price_bgn = forms.FloatField(initial=81.56, label="CO2 Price (EUR/t)")
+    startup_cost = forms.FloatField(initial=25151, label="Startup Cost (EUR)")
     max_startups = forms.IntegerField(initial=33, label="Max Startups")
     min_cumulative_uptime = forms.FloatField(initial=0, label="Min Uptime (h)")
     min_cumulative_power = forms.FloatField(initial=1858758, label="Min Cumulative Power (MWh)")
