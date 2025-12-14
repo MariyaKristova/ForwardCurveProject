@@ -1,11 +1,13 @@
-import base64
+import os
+import pandas as pd
 from django.shortcuts import render
+from django.conf import settings
 from .views_results import view_result
 from .views_utils import create_interactive_plot, generate_interactive_html, compute_financials, calculate_degradation, \
     read_data_from_load_curve
 from .views_utils import read_params_from_results_csv, read_load_curve
 from ..forms import ExtractPeriodForm
-import pandas as pd
+import base64
 
 
 def filter_load_curve_by_dates(load_curve_df, extract_form):

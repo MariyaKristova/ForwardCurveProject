@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import Http404
 from .views_utils import read_results_csv, read_load_curve, read_params_from_results_csv, get_date_from_filename, \
-    create_interactive_plot, generate_interactive_html
+    create_interactive_plot, generate_interactive_html, read_data_from_load_curve
 from ..forms import ExtractPeriodForm
 from django.conf import settings
 import os
