@@ -17,8 +17,6 @@ def read_excel_file(excel_filename):
     df = pd.read_excel(excel_path)
 
     df['DateTime'] = pd.to_datetime(df['DateTime'])
-    bgn_euro_rate = 1.95583
-    df['Price'] = df['Price'] * bgn_euro_rate
     market_price = df['Price'].to_numpy()
 
     return df, market_price
@@ -92,7 +90,7 @@ def read_data_from_load_curve(period_df):
     power = period_df["Power_Output_MW"].to_list()
     commitment = period_df["Commitment"].to_list()
     startups = period_df["Startups"].to_list()
-    market_price = period_df["Market_Price_BGN_per_MWh"].to_numpy()
+    market_price = period_df["Market_Price_EUR_per_MWh"].to_numpy()
     year = period_df['DateTime'].dt.year.iloc[0]
     date_series = period_df['DateTime'].to_list()
 
@@ -139,7 +137,7 @@ def build_model(n_hours, market_price, params, degradation):
     # objective
     def obj_rule(m):
         revenue = sum(m.p[t] * market_price[t] for t in T)
-        gen_cost = sum((params["coal_price"] * params["heat_rate"] * degradation[t] + params["co2_price_bgn"] * params[
+        gen_cost = sum((params["coal_price"] * params["heat_rate"] * degradation[t] + params["co2_price_eur"] * params[
             "emissions"]) * m.p[t] for t in T)
         startup_costs = sum(m.v[t] * params["startup_cost"] for t in T)
         return revenue - gen_cost - startup_costs
@@ -165,7 +163,7 @@ def compute_financials(power, commitment, startups, market_price, params, degrad
     hours = len(power)
     revenue = sum(power[t] * market_price[t] for t in range(hours))
     gen_cost = sum(
-        (params["coal_price"] * params["heat_rate"] * degradation[t] + params["co2_price_bgn"] * params["emissions"]) * power[t] for t in
+        (params["coal_price"] * params["heat_rate"] * degradation[t] + params["co2_price_eur"] * params["emissions"]) * power[t] for t in
         range(hours))
     startup_total = sum(startups[t] * params["startup_cost"] for t in range(hours))
     total_profit = revenue - gen_cost - startup_total
@@ -199,7 +197,7 @@ def save_results_csv(financials, load_curve_df, index_str, date_str, params):
     # save financials and params
     rows = [("metric", "value", "unit")]
     for k, v in financials.items():
-        rows.append((k, v, "BGN" if "cost" in k or "revenue" in k or "profit" in k else ""))
+        rows.append((k, v, "EUR" if "cost" in k or "revenue" in k or "profit" in k else ""))
 
     if params:
         rows.append(("---parameters---", "", ""))
@@ -242,7 +240,7 @@ def create_interactive_plot(T, market_price, power, commitment, max_power, title
 
     # create hover text showing all three values at each original hour
     hover_combined = [
-        f"{x_axis[i]:%d %b %Y %H:%M} <br> market price: {market_price[i]:.2f} bgn/mwh <br>"
+        f"{x_axis[i]:%d %b %Y %H:%M} <br> market price: {market_price[i]:.2f} eur/mwh <br>"
         f"power output: {power[i]:.2f} mw<br>committed: {max_power * commitment[i]:.2f} mw"
         for i in range(len(x_axis))
     ]
@@ -251,7 +249,7 @@ def create_interactive_plot(T, market_price, power, commitment, max_power, title
 
     # market price line (hover shows all three values)
     fig.add_trace(go.Scatter(
-        x=x_axis, y=market_price, mode='lines', name='Market price (BGN/MWh)',
+        x=x_axis, y=market_price, mode='lines', name='Market price (EUR/MWh)',
         line=dict(color='black'),
         hoverinfo='text', hovertext=hover_combined
     ))
