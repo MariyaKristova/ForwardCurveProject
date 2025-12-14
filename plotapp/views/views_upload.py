@@ -51,7 +51,7 @@ def upload_view(request):
                 "Power_Output_MW": power,
                 "Commitment": commitment,
                 "Startups": startups,
-                "Market_Price_BGN_per_MWh": market_price
+                "Market_Price_EUR_per_MWh": market_price
             })
             results_csv_file, load_curve_csv_file = save_results_csv(financials, load_curve_df, run_id, date_str, params)
 
