@@ -40,12 +40,6 @@ def upload_view(request):
                 "min_cumulative_uptime": form.cleaned_data["min_cumulative_uptime"],
             }
 
-            print("coal_price (EUR/kJ):", params["coal_price"])
-            print("fuel cost EUR/MWh:",
-                  params["coal_price"] * params["heat_rate"])
-            print("CO2 cost EUR/MWh:",
-                  params["co2_price_eur"] * params["emissions"])
-
             # build & solve model
             model, T = build_model(n_hours, market_price, params, degradation)
             model = solve_model(model)
