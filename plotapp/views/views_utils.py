@@ -47,6 +47,11 @@ def calculate_degradation(n_hours, year):
     return degradation
 
 
+def coal_price_eur_per_kj(coal_price_tug_eur):
+    # convert coal price from EUR/TUG to EUR/kJ
+    return (coal_price_tug_eur * 1000) / (7000 * 4.1868) * 1e-6
+
+
 def read_load_curve(run_id):
     files = os.listdir(settings.DATA_OUTPUT_DIR)
     load_curve_file = next((f for f in files if f.startswith(run_id) and f.endswith("_load_curve.csv")), None)

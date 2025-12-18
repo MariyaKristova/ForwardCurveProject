@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .views_utils import full_plot, save_results_csv
+from .views_utils import full_plot, save_results_csv, coal_price_eur_per_kj
 from .views_utils import read_excel_file, calculate_degradation, build_model, solve_model, extract_results, compute_financials
 from django.conf import settings
 import os, re
@@ -20,12 +20,31 @@ def upload_view(request):
             year = df['DateTime'].dt.year.iloc[0]
             degradation = calculate_degradation(n_hours, year)
 
+            # calculate coal price
+            coal_price_tug_eur = form.cleaned_data["coal_price_tug"]
+            coal_price_kj = coal_price_eur_per_kj(coal_price_tug_eur)
+
             # prepare parameters
-            params = {k: form.cleaned_data[k] for k in [
-                "min_power", "max_power", "ramp_up", "ramp_down", "emissions",
-                "coal_price", "heat_rate", "co2_price_eur", "startup_cost",
-                "max_startups", "min_cumulative_power", "min_cumulative_uptime"
-            ]}
+            params = {
+                "min_power": form.cleaned_data["min_power"],
+                "max_power": form.cleaned_data["max_power"],
+                "ramp_up": form.cleaned_data["ramp_up"],
+                "ramp_down": form.cleaned_data["ramp_down"],
+                "emissions": form.cleaned_data["emissions"],
+                "coal_price": coal_price_kj,
+                "heat_rate": form.cleaned_data["heat_rate"],
+                "co2_price_eur": form.cleaned_data["co2_price_eur"],
+                "startup_cost": form.cleaned_data["startup_cost"],
+                "max_startups": form.cleaned_data["max_startups"],
+                "min_cumulative_power": form.cleaned_data["min_cumulative_power"],
+                "min_cumulative_uptime": form.cleaned_data["min_cumulative_uptime"],
+            }
+
+            print("coal_price (EUR/kJ):", params["coal_price"])
+            print("fuel cost EUR/MWh:",
+                  params["coal_price"] * params["heat_rate"])
+            print("CO2 cost EUR/MWh:",
+                  params["co2_price_eur"] * params["emissions"])
 
             # build & solve model
             model, T = build_model(n_hours, market_price, params, degradation)
@@ -79,4 +98,7 @@ def upload_view(request):
     else:
         form = PlantParametersForm()
 
+
+
     return render(request, "plotapp/upload.html", {"form": form})
+
