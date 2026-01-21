@@ -16,7 +16,7 @@ The following features were added on top of the original optimization workflow:
 * The X‑axis uses real **DateTime values** (date → day → hour when zooming).
 * Combined hover tooltip shows:
 
-  * Market price (BGN/MWh)
+  * Market price (EUR/MWh)
   * Power output (MW)
   * Commitment level (MW)
 * Zooming and panning are fully supported.
